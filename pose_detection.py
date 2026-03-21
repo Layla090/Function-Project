@@ -1,4 +1,7 @@
 import mediapipe as mp
+print(mp.__file__)
+print(dir(mp))
+
 import streamlit as st
 
 mp_pose = mp.solutions.pose
@@ -16,8 +19,10 @@ if img:
     import numpy as np
 #Took file from Streamlit and turned it into an image object
     image = Image.open(img)
+    image = image.convert("RGB")
 # Turned image NumPy array (matrix of numbers)
     image_np = np.array(image)
+    image_np = image_np[:, :, :3]
 
     st.write("Shape:", image_np.shape)
 # [rows, columns]
@@ -27,6 +32,7 @@ if img:
 # mp_pose.Pose(...) is the AI model that detects human poses in images. The "with" statement ensures that the model is properly initialized and released after use.
 # The static_image_mode=True argument indicates that the model should treat the input as a static image, which is suitable for processing single images rather than video streams.
     with mp_pose.Pose(static_image_mode=True) as pose:
+        image_np.flags.writeable = False
         results = pose.process(image_np)
 
     if results.pose_landmarks:
