@@ -1,28 +1,31 @@
-import time
-import random
-import threading
-
+import streamlit as st
 import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-print(mp.__file__)
-print(dir(mp))
 # NumPy is a library for working with arrays and matrices, which are essential for image processing tasks.
 import numpy as np
-import streamlit as st
 import matplotlib.pyplot as plt
-
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase
 
 st.set_page_config(page_title="One with the Function", layout="centered")
 
 mp_pose = mp.solutions.pose
 
-# set up the graphs
-st.title("Graphs!")
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+
+def change_page(new_page):
+    st.session_state.page = new_page
+
+def home():
+    st.title("One with the Func")
+    st.write("by Sara Koka")
+
+    if st.button("Level Mode"):
+        change_page("graph")
 
 # defines function to create graph images, input: graph_type (string) output: graph image. so later you can call this function with different graph types to generate different graphs. For example, you could call make_graph_image("horizontal") to create a horizontal graph, or make_graph_image("increasing") to create an increasing graph.
 def make_graph_image(graph_type: str):
+    # set up the graphs
+    st.title("Graphs!")
+
     # Create a new figure and axis for plotting (4, 4) is the size of the figure in inches. This creates a square figure that is 4 inches wide and 4 inches tall.
     fig, ax = plt.subplots(figsize=(4, 4))
 
@@ -42,3 +45,8 @@ def make_graph_image(graph_type: str):
     elif graph_type == "positive quadratic":
         y = (x^2)
         title = ("Recreat: y = x^2 (positive quadratic)")
+
+if st.session_state.page == "home":
+    home()
+elif st.session_state.page == "graph"
+    make_graph_image()

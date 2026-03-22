@@ -1,6 +1,5 @@
 streamlit
-streamlit-webrtc
 mediapipe
-opencv-python
 numpy
-av
+matplotlib
+streamlit-webrtc
