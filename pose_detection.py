@@ -2,9 +2,9 @@ import time
 import random
 import threading
 
-import av
-import cv2
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 print(mp.__file__)
 print(dir(mp))
 # NumPy is a library for working with arrays and matrices, which are essential for image processing tasks.
