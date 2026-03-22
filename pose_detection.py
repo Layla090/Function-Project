@@ -30,12 +30,18 @@ def make_graph_image(graph_type: str):
     x = np.linspace(-5, 5, 200)
 
     # now we will create different types of graphs based on the input graph_type. The function checks the value of graph_type and generates the corresponding graph using Matplotlib. Each graph type corresponds to a specific mathematical function or pattern that is plotted on the axes. yay!!
-    if graph_type == "increasing":
+    if graph_type == "increasing linearly":
         y = x
-        title = ("Recreate: y = x (increasing line)")
-    elif graph_type == "decreasing":
+        title = ("Recreate: y = x (increasing linear graph)")
+    elif graph_type == "decreasing linearly":
         y = -x
-        title = ("Recreate: y = -x (decreasing line)")
+        title = ("Recreate: y = -x (decreasing linear graph)")
+    elif graph_type == "positive absolute value":
+        y = abs(x)
+        title = ("Recreate: y = |x| (positive absolute value graph)")
+    elif graph_type == "positive quadratic":
+        y = (x^2)
+        title = ("Recreat: y = x^2 (positive quadratic)")
 
 #past here im pretty sure im gonna delete so here is where I draw the line lalala
 
