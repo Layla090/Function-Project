@@ -43,10 +43,10 @@ def make_graph_image(graph_type: str):
         y = abs(x)
         title = ("Recreate: y = |x| (positive absolute value graph)")
     elif graph_type == "positive quadratic":
-        y = (x^2)
+        y = (x**2)
         title = ("Recreat: y = x^2 (positive quadratic)")
 
 if st.session_state.page == "home":
     home()
-elif st.session_state.page == "graph"
-    make_graph_image()
+elif st.session_state.page == "graph":
+    make_graph_image("increasing linearly")
