@@ -42,38 +42,3 @@ def make_graph_image(graph_type: str):
     elif graph_type == "positive quadratic":
         y = (x^2)
         title = ("Recreat: y = x^2 (positive quadratic)")
-
-#past here im pretty sure im gonna delete so here is where I draw the line lalala
-
-img = st.camera_input("Recreate the Graph with Your Arms!")
-
-st.write(type(img))
-
-if img is not None:
-    st.image(img)
-    from PIL import Image
-
-#Took file from Streamlit and turned it into an image object
-    image = Image.open(img)
-    image = image.convert("RGB")
-# Turned image NumPy array (matrix of numbers)
-    image_np = np.array(image)
-    image_np = image_np[:, :, :3]
-
-    st.write("Shape:", image_np.shape)
-# [rows, columns]
-# [height, width, color channels]
-    st.write("Top-left pixel value:", image_np[0, 0])
-
-# mp_pose.Pose(...) is the AI model that detects human poses in images. The "with" statement ensures that the model is properly initialized and released after use.
-# The static_image_mode=True argument indicates that the model should treat the input as a static image, which is suitable for processing single images rather than video streams.
-    with mp_pose.Pose(static_image_mode=True) as pose:
-        image_np.flags.writeable = False
-        results = pose.process(image_np)
-
-    if results.pose_landmarks:
-        wrist = results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_WRIST]
-        st.write("Left wrist x:", wrist.x)
-        st.write("Left wrist y:", wrist.y)
-    else:
-        st.write("No Pose Detected.")
