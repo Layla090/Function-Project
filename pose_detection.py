@@ -26,28 +26,16 @@ def make_graph_image(graph_type: str):
     # set up the graphs
     st.title("Memorize the Shape of the Graph")
 
-    # Create a new figure and axis for plotting (4, 4) is the size of the figure in inches. This creates a square figure that is 4 inches wide and 4 inches tall.
-    fig, ax = plt.subplots()
-    ax.plot(x, y, label="points")
+    x = np.linspace(0, 2, 100)  # Sample data.
 
-    # Generate 200 evenly spaced values between -5 and 5 for the x-axis.
-    x = np.linspace(-5, 5, 200)
-    y == np.linspace(-5, 5, 200)
-
-    # now we will create different types of graphs based on the input graph_type. The function checks the value of graph_type and generates the corresponding graph using Matplotlib. Each graph type corresponds to a specific mathematical function or pattern that is plotted on the axes. yay!!
-    if graph_type == "increasing linearly":
-        y = x
-        ax.set_title("Recreate: y = x (increasing linear graph)")
-    elif graph_type == "decreasing linearly":
-        y = -x
-        ax.set_title("Recreate: y = -x (decreasing linear graph)")
-    elif graph_type == "positive absolute value":
-        y = abs(x)
-        ax.set_title("Recreate: y = |x| (positive absolute value graph)")
-    elif graph_type == "positive quadratic":
-        y = (x**2)
-        ax.set_title("Recreate: y = x^2 (positive quadratic)")
-    plt.show()
+    plt.figure(figsize=(5, 2.7), layout='constrained')
+    plt.plot(x, x, label='linear')  # Plot some data on the (implicit) Axes.
+    plt.plot(x, x**2, label='quadratic')  # etc.
+    plt.plot(x, x**3, label='cubic')
+    plt.xlabel('x label')
+    plt.ylabel('y label')
+    plt.title("Simple Plot")
+    plt.legend()
 
 if st.session_state.page == "home":
     home()
