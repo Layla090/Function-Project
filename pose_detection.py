@@ -40,8 +40,6 @@ def home():
 # define graphs
 def make_graph_image(graph_type: str):
     # set up the graphs
-    st.title("Memorize the Shape of the Graph")
-
     x = np.linspace(-15, 15, 100)  # 100 points from -15 to 15
 
     if graph_type == "quadratic":
@@ -63,14 +61,17 @@ def make_graph_image(graph_type: str):
 
 # graph page
 def graph():
-    make_graph_image("quadratic")
+    st.title("Memorize the Shape of the Graph")
 
     graph_duration = 5
     elapsed = time.time() - st.session_state.graphs_start_time
     remaining = max(0, graph_duration - elapsed)
 
     st.write(f"You have {remaining:.1f} seconds to memorize the graph.")
-    if remaining <= 0.0:
+    
+    make_graph_image("quadratic")
+
+    if remaining <= 0:
         st.session_state.cam_start_time = time.time()
         change_page("camera")
     else:
@@ -87,7 +88,7 @@ def camera():
     elapsed = time.time() - st.session_state.cam_start_time
     remaining = max(0, camera_duration - elapsed)
 
-    st.write(f"You have {remaining:.if} seconds")
+    st.write(f"You have {remaining:.1f} seconds")
     if remaining <= 0:
         st.write("Time's up! Let's see how you did!")
         # Here you would add code to analyze the captured pose and grade the user
