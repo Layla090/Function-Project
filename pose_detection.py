@@ -39,5 +39,4 @@ def make_graph_image(graph_type: str):
 
 if st.session_state.page == "home":
     home()
-elif st.session_state.page == "graph":
-    make_graph_image("increasing linearly")
+elif st.session_state.page == "graph":x
