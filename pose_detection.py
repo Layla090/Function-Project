@@ -14,14 +14,11 @@ st.set_page_config(page_title="Just Graph", layout="centered")
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-if "graph_start_timer" not in st.session_state:
-    st.session_state.graph_start_time = None
+if "graphs_start_time" not in st.session_state:
+    st.session_state.graphs_start_time = None
 
-if "cam_start_timer" not in st.session_state:
+if "cam_start_time" not in st.session_state:
     st.session_state.cam_start_time = None
-
-if "page" not in st.session_state:
-    st.session_state.page = "home"
 
 # new page function
 def change_page(new_page):
@@ -60,20 +57,24 @@ def make_graph_image(graph_type: str):
     st.pyplot(plt)
 
 # graph page
+
 def graph():
     st.title("Memorize the Shape of the Graph")
 
-    graph_duration = 5
+    graphs_duration = 7
     elapsed = time.time() - st.session_state.graphs_start_time
-    remaining = max(0, graph_duration - elapsed)
+    remaining = max(0, graphs_duration - elapsed)
 
     st.write(f"You have {remaining:.1f} seconds to memorize the graph.")
     
     make_graph_image("quadratic")
 
     if remaining <= 0:
+        st.session_state.graphs_start_time = None
         st.session_state.cam_start_time = time.time()
         change_page("camera")
+        return
+
     else:
         time.sleep(1)  # Update every second
         st.rerun()  # Rerun the app to update the timer
@@ -89,40 +90,45 @@ def camera():
     remaining = max(0, camera_duration - elapsed)
 
     st.write(f"You have {remaining:.1f} seconds")
+
     if remaining <= 0:
-        st.write("Time's up! Let's see how you did!")
+        st.write("Time's up!")
+        change_page("accuracy")
+        return
         # Here you would add code to analyze the captured pose and grade the user
-    else:
-        time.sleep(1)  # Update every second
-        st.rerun()  # Rerun the app to update the timer
-    # Initialize MediaPipe Pose
-    pose = mp_pose.Pose()
-    # Start video capture
+    
+    frame_placeholder = st.empty()  # Placeholder for the video feed so it doesnt create a new video feed every time it reruns the app
+    
     cap = cv2.VideoCapture(0)
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+    ret, frame = cap.read()
+    cap.release()  # Release the camera immediately after capturing the frame
+    
+    if ret:
+      # Convert the image to RGB
+      image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # Convert the image to RGB
-        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(image)
+      if "pose" not in st.session_state:
+          st.session_state.pose = mp_pose.Pose()
+      results = st.session_state.pose.process(image)
 
+      if results.pose_landmarks:
         # Draw pose landmarks on the image
         mp.solutions.drawing_utils.draw_landmarks(
-            image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-        # Display the resulting image
-        st.image(image)
-
-
+            image,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS
+        )
+        frame_placeholder.image(image)
+    
+        time.sleep(.1)
+        st.rerun()  # Rerun the app to update the timer
 
 # accuracy page
 def accuracy():
     st.title("How'd you do??")
 
     if st.button("retry"):
-        st.session_state.graph.start_time = None
+        st.session_state.graphs_start_time = None
         st.session_state.cam_start_time = None
         change_page("home")
 
