@@ -60,6 +60,7 @@ def make_graph_image(graph_type: str):
 
 def graph():
     st.title("Memorize the Shape of the Graph")
+    st.button("Start") = None
 
     graphs_duration = 7
     elapsed = time.time() - st.session_state.graphs_start_time
@@ -73,7 +74,6 @@ def graph():
         st.session_state.graphs_start_time = None
         st.session_state.cam_start_time = time.time()
         change_page("camera")
-        return
 
     else:
         time.sleep(1)  # Update every second
