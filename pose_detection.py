@@ -111,27 +111,31 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
     def recv(self, frame): #recv runs everytime a new vid frame comes in. frame = 1 image from the live video
         img = frame.to_ndarray(format="bgr24") #camera pixels are now data mwahahaha
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #convert openCV's BGR to mediapipe's RGB for correct color
-    
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb) # make the image ready for Mediapipe
 
         if not hasattr(self, "start_time"):
             self.start_time = time.time()
 
         timestamp_ms = int((time.time() - self.start_time) * 1000)
-        
         result = self.landmarker.detect_for_video(mp_image, timestamp_ms) # actual pose detection step. Result func. Find body landmarks, result stores them
 
         if result.pose_landmarks: # if the pose is found then...
-            for pose_landmarks in result.pose_landmarks: #Note: MediaPipe gives the result as a list
-                for landmark in pose_landmarks: # defines above
-                    h, w, _=img.shape
-                    cx = int(landmark.x * w)    # ex: if wrist x = 0.5 and screen width is 630, then pixel x = 320
-                    cy = int(landmark.y * h)    # shows where to draw on the img
+            cv2.putText(img, "POSE DETECTED", (20, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
+            landmarks = result.pose_landmarks[0]
+            h, w, _ = img.shape
 
-                    cv2.circle(img, (cx, cy), 4, (255, 105, 180), -1) #adds a lil deeppink dot on each point hehe
-
-        return av.VideoFrame.from_ndarray(img, format="bgr24") # shows the edited frae back to the video stream
-
+            for i in [11, 13, 15, 12, 14, 16]: #shoulders, elbows, wrists
+                lm = landmarks[i]
+                cx = int(lm.x * w)
+                cy = int(lm.y * h)
+                cv2.circle(img, (cx, cy), 10, (255, 105, 180), -1)
+        else:
+            cv2.putText(img, "NO POSE", (20, 80),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+    
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
 # camera page
