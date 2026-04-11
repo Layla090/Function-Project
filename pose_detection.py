@@ -60,7 +60,6 @@ def make_graph_image(graph_type: str):
 
 def graph():
     st.title("Memorize the Shape of the Graph")
-    st.button("Start") = None
 
     graphs_duration = 7
     elapsed = time.time() - st.session_state.graphs_start_time
@@ -70,10 +69,11 @@ def graph():
     
     make_graph_image("quadratic")
 
-    if remaining <= 0:
+    if remaining == 0:
         st.session_state.graphs_start_time = None
         st.session_state.cam_start_time = time.time()
         change_page("camera")
+        st.rerun()  # Rerun the app to immediately switch to the camera page
 
     else:
         time.sleep(1)  # Update every second
@@ -83,45 +83,68 @@ def graph():
 
 def camera():
     st.title("Recreate the Graph with Your Arms!")
-    st.write("Use your arms to mimic the shape of the graph. The camera will capture your pose and grade you on your accuracy hehe")
+    st.write("Use your arms to mimic the shape of the graph.")
 
-    camera_duration = 12
+    duration = 10
+
+    # Initialize timer
+    if st.session_state.cam_start_time is None:
+        st.session_state.cam_start_time = time.time()
+
+    # Initialize storage for last frame
+    if "last_frame" not in st.session_state:
+        st.session_state.last_frame = None
+
     elapsed = time.time() - st.session_state.cam_start_time
-    remaining = max(0, camera_duration - elapsed)
+    remaining = max(0, duration - elapsed)
 
     st.write(f"You have {remaining:.1f} seconds")
 
-    if remaining <= 0:
-        st.write("Time's up!")
-        change_page("accuracy")
-        return
-        # Here you would add code to analyze the captured pose and grade the user
-    
-    frame_placeholder = st.empty()  # Placeholder for the video feed so it doesnt create a new video feed every time it reruns the app
-    
+    frame_placeholder = st.empty()
+
+    # 🎥 Capture ONE frame
     cap = cv2.VideoCapture(0)
     ret, frame = cap.read()
-    cap.release()  # Release the camera immediately after capturing the frame
-    
-    if ret:
-      # Convert the image to RGB
-      image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    cap.release()
 
-      if "pose" not in st.session_state:
-          st.session_state.pose = mp_pose.Pose()
-      results = st.session_state.pose.process(image)
+    if not ret:
+        st.error("Camera not working 😬")
+        return
 
-      if results.pose_landmarks:
-        # Draw pose landmarks on the image
+    # Convert to RGB
+    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Pose detection
+    if "pose" not in st.session_state:
+        st.session_state.pose = mp_pose.Pose()
+
+    results = st.session_state.pose.process(image)
+
+    if results.pose_landmarks:
         mp.solutions.drawing_utils.draw_landmarks(
             image,
             results.pose_landmarks,
             mp_pose.POSE_CONNECTIONS
         )
+
+    # Always store latest frame
+    st.session_state.last_frame = image
+
+    # ⏱ BEFORE TIME ENDS → show live feed
+    if remaining > 0:
         frame_placeholder.image(image)
-    
-        time.sleep(.1)
-        st.rerun()  # Rerun the app to update the timer
+        time.sleep(0.05)
+        st.rerun()
+
+    # 🧊 AFTER TIME ENDS → freeze frame
+    else:
+        st.write("📸 Freeze frame!")
+        frame_placeholder.image(st.session_state.last_frame)
+
+        # Move to next page after short delay
+        time.sleep(2)
+        change_page("accuracy")
+        st.rerun()
 
 # accuracy page
 def accuracy():
@@ -131,6 +154,7 @@ def accuracy():
         st.session_state.graphs_start_time = None
         st.session_state.cam_start_time = None
         change_page("home")
+        st.rerun()  # Rerun the app to immediately switch to the home page
 
 # page routing
 if st.session_state.page == "home":
