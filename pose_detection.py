@@ -1,12 +1,23 @@
-import cv2
 import streamlit as st
 import mediapipe as mp
+import cv2
+import av
 # NumPy is a library for working with arrays and matrices, which are essential for image processing tasks.
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-mp_pose = mp.solutions.pose
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from streamlit_webrtc import VideoProcessorBase
+
+# Mediapipe for live stream
+BaseOptions = mp.tasks.BaseOptions
+PoseLandmarker = mp.tasks.vision.PoseLandmarker
+PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
+VisionRunningMode = mp.tasks.vision.RunningMode
+
+MODEL_PATH = "pose_landmarker.task"
 
 st.set_page_config(page_title="Just Graph", layout="centered")
 
@@ -33,6 +44,7 @@ def home():
     if st.button("Start"):
         st.session_state.graphs_start_time = time.time()
         change_page("graph")
+        st.rerun()
  
 # define graphs
 def make_graph_image(graph_type: str):
@@ -48,20 +60,22 @@ def make_graph_image(graph_type: str):
     else:
         y = np.zeros_like(x) # default to a horizontal line at y=0
 
-    plt.plot(x, y, label="quadratic: y = 1x^2 + 2x + 1")
     plt.xlabel("x-axis")
     plt.ylabel("y-axis")
     plt.legend()
     plt.grid(True)
 
-    st.pyplot(plt)
+    fig, ax = plt.subplots()
+    ax.plot(x, y)
+
+    st.pyplot(fig)
 
 # graph page
 
 def graph():
     st.title("Memorize the Shape of the Graph")
 
-    graphs_duration = 7
+    graphs_duration = 5
     elapsed = time.time() - st.session_state.graphs_start_time
     remaining = max(0, graphs_duration - elapsed)
 
@@ -79,72 +93,75 @@ def graph():
         time.sleep(1)  # Update every second
         st.rerun()  # Rerun the app to update the timer
 
-# camera page
+#vid processor
+class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
+    
+    def __init__(self):
+        options = PoseLandmarkerOptions(
+             base_options=BaseOptions(model_asset_path=MODEL_PATH), #use pose model file
+             running_mode=VisionRunningMode.VIDEO, #treat like a video
+             num_poses=1, # look for one person
+             min_pose_detection_confidence=0.5, #confidence that it is said body part
+             min_pose_presence_confidence=0.5, #confidence that a person is there
+             min_tracking_confidence=0.5, #confidence for movement tracking
+        )
 
+        self.landmarker = PoseLandmarker.create_from_options(options) # build the pose landmarker and save it as "self landmarker"
+
+    def recv(self, frame): #recv runs everytime a new vid frame comes in. frame = 1 image from the live video
+        img = frame.to_ndarray(format="bgr24") #camera pixels are now data mwahahaha
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #convert openCV's BGR to mediapipe's RGB for correct color
+    
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb) # make the image ready for Mediapipe
+
+        if not hasattr(self, "start_time"):
+            self.start_time = time.time()
+
+        timestamp_ms = int((time.time() - self.start_time) * 1000)
+        
+        result = self.landmarker.detect_for_video(mp_image, timestamp_ms) # actual pose detection step. Result func. Find body landmarks, result stores them
+
+        if result.pose_landmarks: # if the pose is found then...
+            for pose_landmarks in result.pose_landmarks: #Note: MediaPipe gives the result as a list
+                for landmark in pose_landmarks: # defines above
+                    h, w, _=img.shape
+                    cx = int(landmark.x * w)    # ex: if wrist x = 0.5 and screen width is 630, then pixel x = 320
+                    cy = int(landmark.y * h)    # shows where to draw on the img
+
+                    cv2.circle(img, (cx, cy), 4, (255, 105, 180), -1) #adds a lil deeppink dot on each point hehe
+
+        return av.VideoFrame.from_ndarray(img, format="bgr24") # shows the edited frae back to the video stream
+
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+
+# camera page
 def camera():
     st.title("Recreate the Graph with Your Arms!")
     st.write("Use your arms to mimic the shape of the graph.")
 
-    duration = 10
+    rtc_config = RTCConfiguration(
+        {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    )
 
+    webrtc_streamer(
+        key="pose",
+        video_processor_factory=PoseVideoProcessor,
+        rtc_configuration=rtc_config,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
     # Initialize timer
     if st.session_state.cam_start_time is None:
         st.session_state.cam_start_time = time.time()
-
-    # Initialize storage for last frame
-    if "last_frame" not in st.session_state:
-        st.session_state.last_frame = None
-
     elapsed = time.time() - st.session_state.cam_start_time
-    remaining = max(0, duration - elapsed)
+    remaining = max(0, 10 - elapsed)
 
-    st.write(f"You have {remaining:.1f} seconds")
+    st.write(f"Time left: {remaining:.1f} seconds")
 
-    frame_placeholder = st.empty()
-
-    # 🎥 Capture ONE frame
-    cap = cv2.VideoCapture(0)
-    ret, frame = cap.read()
-    cap.release()
-
-    if not ret:
-        st.error("Camera not working 😬")
-        return
-
-    # Convert to RGB
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-    # Pose detection
-    if "pose" not in st.session_state:
-        st.session_state.pose = mp_pose.Pose()
-
-    results = st.session_state.pose.process(image)
-
-    if results.pose_landmarks:
-        mp.solutions.drawing_utils.draw_landmarks(
-            image,
-            results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS
-        )
-
-    # Always store latest frame
-    st.session_state.last_frame = image
-
-    # ⏱ BEFORE TIME ENDS → show live feed
-    if remaining > 0:
-        frame_placeholder.image(image)
-        time.sleep(0.05)
-        st.rerun()
-
-    # 🧊 AFTER TIME ENDS → freeze frame
-    else:
-        st.write("📸 Freeze frame!")
-        frame_placeholder.image(st.session_state.last_frame)
-
-        # Move to next page after short delay
-        time.sleep(2)
+    if remaining <= 0:
         change_page("accuracy")
         st.rerun()
+
 
 # accuracy page
 def accuracy():
