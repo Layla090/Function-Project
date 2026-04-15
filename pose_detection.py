@@ -95,45 +95,11 @@ def graph():
 
 #vid processor
 class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
-    
-    def __init__(self):
-        options = PoseLandmarkerOptions(
-             base_options=BaseOptions(model_asset_path=MODEL_PATH), #use pose model file
-             running_mode=VisionRunningMode.VIDEO, #treat like a video
-             num_poses=1, # look for one person
-             min_pose_detection_confidence=0.5, #confidence that it is said body part
-             min_pose_presence_confidence=0.5, #confidence that a person is there
-             min_tracking_confidence=0.5, #confidence for movement tracking
-        )
-
-        self.landmarker = PoseLandmarker.create_from_options(options) # build the pose landmarker and save it as "self landmarker"
-
     def recv(self, frame): #recv runs everytime a new vid frame comes in. frame = 1 image from the live video
         img = frame.to_ndarray(format="bgr24") #camera pixels are now data mwahahaha
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #convert openCV's BGR to mediapipe's RGB for correct color
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb) # make the image ready for Mediapipe
 
-        if not hasattr(self, "start_time"):
-            self.start_time = time.time()
-
-        timestamp_ms = int((time.time() - self.start_time) * 1000)
-        result = self.landmarker.detect_for_video(mp_image, timestamp_ms) # actual pose detection step. Result func. Find body landmarks, result stores them
-
-        if result.pose_landmarks: # if the pose is found then...
-            cv2.putText(img, "POSE DETECTED", (20, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            
-            landmarks = result.pose_landmarks[0]
-            h, w, _ = img.shape
-
-            for i in [11, 13, 15, 12, 14, 16]: #shoulders, elbows, wrists
-                lm = landmarks[i]
-                cx = int(lm.x * w)
-                cy = int(lm.y * h)
-                cv2.circle(img, (cx, cy), 10, (255, 105, 180), -1)
-        else:
-            cv2.putText(img, "NO POSE", (20, 80),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
         return av.VideoFrame.from_ndarray(img, format="bgr24")
     
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration

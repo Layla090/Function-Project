@@ -3,3 +3,5 @@ mediapipe
 numpy
 matplotlib
 streamlit-webrtc
+opencv-python
+av
