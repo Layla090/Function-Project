@@ -6,7 +6,9 @@ import av
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import math
 
+from time import time
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from streamlit_webrtc import VideoProcessorBase
@@ -101,7 +103,13 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb) # make the image ready for Mediapipe
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
+    # initialize mediapipe pose class.
+    mp_pose = mp.solutions.pose
+
+    #set up the pose detection model for video processing with the following parameters: 1. static_image_mode is false because we want to process a video stream, not individual images. 2. min_detection_confidence is set to 0.5 to ensure that the model only detects poses when it is reasonably confident. 3. model_complexity is set to 2 for a balance between accuracy and performance.
+    pose_video = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=2)
     
+
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
 # camera page
