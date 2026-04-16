@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import time
 import math
 
-from time import time
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from streamlit_webrtc import VideoProcessorBase
@@ -32,6 +31,21 @@ if "graphs_start_time" not in st.session_state:
 
 if "cam_start_time" not in st.session_state:
     st.session_state.cam_start_time = None
+
+if "frozen_frame" not in st.session_state:
+    st.session_state.frozen_frame = None
+
+if "frozen_landmarks" not in st.session_state:
+    st.session_state.frozen_landmarks = None
+
+if "current_graph" not in st.session_state:
+    st.session_state.current_graph = "quadratic"
+
+if "score" not in st.session_state:
+    st.session_state.score = None
+
+if "feedback" not in st.session_state:
+    st.session_state.feedback = ""
 
 # new page function
 def change_page(new_page):
@@ -97,18 +111,48 @@ def graph():
 
 #vid processor
 class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
+    def __init__(self):
+    # mediaPipe set up
+        self.mp_pose = mp.solutions.pose
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
+        # detector applications:
+        self.pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5, static_image_mode=False, model_complexity=2) #confidence
+
+        # save the last frame and landmarks
+        self.last_img = None
+        self.last_landmarks = None
+
     def recv(self, frame): #recv runs everytime a new vid frame comes in. frame = 1 image from the live video
-        img = frame.to_ndarray(format="bgr24") #camera pixels are now data mwahahaha
-        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) #convert openCV's BGR to mediapipe's RGB for correct color
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb) # make the image ready for Mediapipe
+         #camera pixels are now data mwahahaha
+        img = frame.to_ndarray(format="bgr24")
+         #convert openCV's BGR to mediapipe's RGB for correct color
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
+        #run pose detection on the frames
+        results = self.pose.process(rgb)
+
+        # save the last frame (it's a copy so it's not live)
+        self.last_img = img.copy()
+
+        if results.pose_landmarks:
+            self.last_landmarks = results.pose_landmarks
+""
+            #draw pose landmarks on the frames continuously for live visulizations
+            self.mp_drawing.draw_landmarks(
+                img, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style(),
+            )
+
+        else:
+            self.last_landmarks = None
+        
         return av.VideoFrame.from_ndarray(img, format="bgr24")
-    # initialize mediapipe pose class.
-    mp_pose = mp.solutions.pose
 
-    #set up the pose detection model for video processing with the following parameters: 1. static_image_mode is false because we want to process a video stream, not individual images. 2. min_detection_confidence is set to 0.5 to ensure that the model only detects poses when it is reasonably confident. 3. model_complexity is set to 2 for a balance between accuracy and performance.
-    pose_video = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, model_complexity=2)
-    
+# scoring value
+def clamp_score(value):
+    # keep score between 0 and 100
+
 
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
@@ -121,7 +165,7 @@ def camera():
         {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
     )
 
-    webrtc_streamer(
+    ctx = webrtc_streamer(
         key="pose",
         video_processor_factory=PoseVideoProcessor,
         rtc_configuration=rtc_config,
@@ -137,13 +181,20 @@ def camera():
     st.write(f"Time left: {remaining:.1f} seconds")
 
     if remaining <= 0:
-        change_page("accuracy")
+        if ctx.video_processor:
+            st.session_state.frozen_frame = ctx.video_processor.last_img.copy()
+            st.session_state.frozen_landmarks = ctx.video_processor.last_landmarks
+
+        change_page("accuracy")    
         st.rerun()
 
 
 # accuracy page
 def accuracy():
     st.title("How'd you do??")
+
+    if st.session_state.frozen_frame is not None:
+        st.image(st.session_state.frozen_frame, channels="BGR")
 
     if st.button("retry"):
         st.session_state.graphs_start_time = None
