@@ -113,7 +113,7 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
     # mediaPipe set up
         self.options = PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=VisionRunningMode.LIVE_STREAM,0
+            running_mode=VisionRunningMode.LIVE_STREAM
         )
         # detector applications:
         self.pose = PoseLandmarker.create_from_options(self.options)
