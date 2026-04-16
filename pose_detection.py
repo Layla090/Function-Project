@@ -8,8 +8,6 @@ import matplotlib.pyplot as plt
 import time
 import math
 
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
 from streamlit_webrtc import VideoProcessorBase
 
 # Mediapipe for live stream
@@ -113,11 +111,12 @@ def graph():
 class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
     def __init__(self):
     # mediaPipe set up
-        self.mp_pose = mp.solutions.pose
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
+        self.options = PoseLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=MODEL_PATH),
+            running_mode=VisionRunningMode.LIVE_STREAM,0
+        )
         # detector applications:
-        self.pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5, static_image_mode=False, model_complexity=2) #confidence
+        self.pose = PoseLandmarker.create_from_options(self.options)
 
         # save the last frame and landmarks
         self.last_img = None
@@ -138,11 +137,12 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
         if results.pose_landmarks:
             self.last_landmarks = results.pose_landmarks
             #draw pose landmarks on the frames continuously for live visulizations
-            self.mp_drawing.draw_landmarks(
-                img, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
-                landmark_drawing_spec=self.mp_drawing_styles.get_default_pose_landmarks_style(),
-            )
-
+            
+            # draw simple dots
+            for landmark in results.pose_landmarks[0]:
+                h, w, _ = img.shape
+                cx, cy = int(landmark.x * w), int(landmark.y * h)
+                cv2.circle(img, (cx, cy), 5, (255,20,147), -1)  # hotpink dots
         else:
             self.last_landmarks = None
         
@@ -151,7 +151,7 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
 # scoring value
 def clamp_score(value):
     # keep score between 0 and 100
-
+    return max(0, min(100, value))
 
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 
@@ -180,7 +180,7 @@ def camera():
     st.write(f"Time left: {remaining:.1f} seconds")
 
     if remaining <= 0:
-        if ctx.video_processor:
+        if ctx.video_processor and ctx.video_processor.last_img is not None:
             st.session_state.frozen_frame = ctx.video_processor.last_img.copy()
             st.session_state.frozen_landmarks = ctx.video_processor.last_landmarks
 
