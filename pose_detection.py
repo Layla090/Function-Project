@@ -113,10 +113,15 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
     # mediaPipe set up
         self.options = PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=VisionRunningMode.VIDEO
+            running_mode=VisionRunningMode.VIDEO,
+            num_poses=1,
+            min_pose_detection_confidence=0.5,
+            min_pose_presence_confidence=0.3,
+            min_tracking_confidence=0.5,
         )
         # detector applications:
         self.pose = PoseLandmarker.create_from_options(self.options)
+        self.start_time = time.monotonic()
 
         # save the last frame and landmarks
         self.last_img = None
@@ -131,7 +136,7 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
         # save the last frame (it's a copy so it's not live)
         self.last_img = img.copy()
 
-        timestamp_ms = int(time.time() * 1000)
+        timestamp_ms = int((time.monotonic() - self.start_time) * 1000)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         results = self.pose.detect_for_video(mp_image, timestamp_ms)
 
@@ -146,6 +151,7 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
                 cv2.circle(img, (cx, cy), 5, (255,20,147), -1)  # hotpink dots
         else:
             self.last_landmarks = None
+            cv2.putText(img, "No pose detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
@@ -191,6 +197,7 @@ def camera():
 
 # accuracy page
 def accuracy():
+    st.write(st.session_state.frozen_landmarks)
     st.title("How'd you do??")
 
     if st.session_state.frozen_frame is not None:
