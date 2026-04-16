@@ -113,7 +113,7 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
     # mediaPipe set up
         self.options = PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=MODEL_PATH),
-            running_mode=VisionRunningMode.LIVE_STREAM
+            running_mode=VisionRunningMode.VIDEO
         )
         # detector applications:
         self.pose = PoseLandmarker.create_from_options(self.options)
@@ -128,11 +128,12 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
          #convert openCV's BGR to mediapipe's RGB for correct color
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        #run pose detection on the frames
-        results = self.pose.process(rgb)
-
         # save the last frame (it's a copy so it's not live)
         self.last_img = img.copy()
+
+        timestamp_ms = int(time.time() * 1000)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results = self.pose.detect_for_video(mp_image, timestamp_ms)
 
         if results.pose_landmarks:
             self.last_landmarks = results.pose_landmarks
