@@ -152,106 +152,198 @@ def score_pose(landmarks, graph_key):
     left_hip      = lm[23]
     right_hip     = lm[24]
 
-    # Helper: is point A above point B? (smaller y = higher on screen)
-    def above(a, b): return a.y < b.y
-    def below(a, b): return a.y > b.y
+    def arm_angle_deg(shoulder, elbow, wrist):
+        """Angle of the full arm (shoulder→wrist vector) in degrees. 0=right, 90=up, -90=down."""
+        dx = wrist.x - shoulder.x
+        dy = shoulder.y - wrist.y  # flip y since screen y increases downward
+        return np.degrees(np.arctan2(dy, dx))
 
-    # Wrist height relative to shoulder (positive = above shoulder)
-    lw_rel = left_shoulder.y  - left_wrist.y   # positive = left wrist above shoulder
-    rw_rel = right_shoulder.y - right_wrist.y  # positive = right wrist above shoulder
+    def elbow_bend(shoulder, elbow, wrist):
+        """How much the elbow deviates from a straight shoulder→wrist line (0=straight)."""
+        # Vector shoulder→wrist
+        sw_dx = wrist.x - shoulder.x
+        sw_dy = wrist.y - shoulder.y
+        sw_len = np.sqrt(sw_dx**2 + sw_dy**2) + 1e-6
+        # Project elbow onto that line
+        t = ((elbow.x - shoulder.x) * sw_dx + (elbow.y - shoulder.y) * sw_dy) / (sw_len**2)
+        proj_x = shoulder.x + t * sw_dx
+        proj_y = shoulder.y + t * sw_dy
+        # Perpendicular distance (normalized by body width)
+        body_width = abs(left_shoulder.x - right_shoulder.x) + 1e-6
+        return np.sqrt((elbow.x - proj_x)**2 + (elbow.y - proj_y)**2) / body_width
 
-    # Elbow height relative to shoulder
+    # Arm angles
+    left_angle  = arm_angle_deg(left_shoulder,  left_elbow,  left_wrist)
+    right_angle = arm_angle_deg(right_shoulder, right_elbow, right_wrist)
+
+    # Wrist height relative to shoulder (positive = wrist above shoulder)
+    lw_rel = left_shoulder.y  - left_wrist.y
+    rw_rel = right_shoulder.y - right_wrist.y
     le_rel = left_shoulder.y  - left_elbow.y
     re_rel = right_shoulder.y - right_elbow.y
 
-    # Horizontal spread of wrists
+    # Elbow bend (straightness)
+    left_bend  = elbow_bend(left_shoulder,  left_elbow,  left_wrist)
+    right_bend = elbow_bend(right_shoulder, right_elbow, right_wrist)
+    arms_straight = left_bend < 0.25 and right_bend < 0.25
+
+    # Horizontal wrist spread
     wrist_spread = abs(left_wrist.x - right_wrist.x)
 
-    score = 50  # start at 50, adjust up/down
+    score = 0
     feedback_parts = []
 
     if graph_key == "linear":
-        # One arm up, one arm down (diagonal line)
-        # Left wrist high, right wrist low (or vice versa)
-        diagonal = (lw_rel > 0.05 and rw_rel < -0.05) or (rw_rel > 0.05 and lw_rel < -0.05)
+        # Want one arm angled up (~30–80°) and other angled down (~-30 to -80°)
+        # or both arms forming one continuous diagonal line
+        angle_diff = abs(left_angle - right_angle)  # ideally ~120–180° apart
+        high_arm   = max(lw_rel, rw_rel)
+        low_arm    = min(lw_rel, rw_rel)
+        diagonal   = high_arm > 0.12 and low_arm < -0.05
+
         if diagonal:
             score += 40
-            feedback_parts.append("Great diagonal arm angle!")
+            feedback_parts.append("Good diagonal direction!")
         else:
-            score -= 20
-            feedback_parts.append("Try raising one arm high and keeping the other low.")
-        # Bonus: arms spread wide
-        if wrist_spread > 0.4:
-            score += 10
-            feedback_parts.append("Good arm spread.")
+            feedback_parts.append("One arm should be clearly up, the other clearly down.")
+
+        # Reward how far apart the angles are (closer to 180° = straighter diagonal)
+        angle_score = min(40, int((min(angle_diff, 160) / 160) * 40))
+        score += angle_score
+
+        # Penalise bent elbows
+        if arms_straight:
+            score += 20
+            feedback_parts.append("Arms nice and straight!")
+        else:
+            score += 5
+            feedback_parts.append("Try to straighten your arms more.")
 
     elif graph_key == "quadratic":
-        # Both wrists above shoulders (U-shape = arms raised on sides)
-        both_up = lw_rel > 0.05 and rw_rel > 0.05
+        both_up   = lw_rel > 0.08 and rw_rel > 0.08
+        spread    = wrist_spread > 0.45
+
         if both_up:
-            score += 40
-            feedback_parts.append("Nice U-shape with both arms up!")
+            # How symmetrically are both arms raised?
+            symmetry = 1 - min(abs(lw_rel - rw_rel) / 0.3, 1.0)
+            score += int(40 * symmetry)
+            feedback_parts.append("Both arms up — nice U-shape!" if symmetry > 0.6 else "Try to raise both arms equally.")
         else:
-            score -= 20
             feedback_parts.append("Raise both wrists above your shoulders for a U-shape.")
-        if wrist_spread > 0.5:
-            score += 10
+
+        if spread:
+            score += 20
+            feedback_parts.append("Good width!")
+        else:
+            feedback_parts.append("Spread your arms wider.")
+
+        if arms_straight:
+            score += 20
+        else:
+            score += 5
+            feedback_parts.append("Straighter arms = cleaner parabola.")
+
+        # Symmetry bonus
+        if both_up and spread and arms_straight:
+            score += 20
 
     elif graph_key == "absolute_value":
-        # Both wrists above shoulders AND spread wide (V-shape)
-        both_up = lw_rel > 0.05 and rw_rel > 0.05
-        if both_up and wrist_spread > 0.45:
-            score += 50
-            feedback_parts.append("Excellent V-shape!")
+        both_up = lw_rel > 0.08 and rw_rel > 0.08
+        spread  = wrist_spread > 0.5
+
+        if both_up and spread:
+            symmetry = 1 - min(abs(lw_rel - rw_rel) / 0.3, 1.0)
+            score += int(50 * symmetry)
+            feedback_parts.append("Excellent V-shape!" if symmetry > 0.6 else "Make sure both sides of the V are equal.")
         elif both_up:
             score += 25
-            feedback_parts.append("Arms up, but try spreading them wider for a V.")
+            feedback_parts.append("Arms up but spread them wider for a sharper V.")
         else:
-            score -= 20
-            feedback_parts.append("Raise both arms outward and upward for a V-shape.")
+            feedback_parts.append("Raise both arms upward and outward.")
+
+        if arms_straight:
+            score += 25
+            feedback_parts.append("Straight arms make a crisp V!")
+        else:
+            score += 5
+            feedback_parts.append("Straighten your arms for a cleaner V.")
+
+        if both_up and spread and arms_straight:
+            score += 25
 
     elif graph_key == "square_root":
-        # Right arm raised high, left arm low or neutral (curve goes right only)
-        right_high = rw_rel > 0.1
-        left_low   = lw_rel < 0.05
-        if right_high and left_low:
-            score += 50
-            feedback_parts.append("Good — right arm high, left side low!")
-        elif right_high:
-            score += 25
-            feedback_parts.append("Right arm looks good; keep your left arm lower.")
+        # Right arm high, left arm low/neutral; right elbow should be fairly straight
+        right_high  = rw_rel > 0.12
+        left_low    = lw_rel < 0.06
+        right_str   = right_bend < 0.25
+
+        if right_high:
+            height_score = min(35, int((min(rw_rel, 0.35) / 0.35) * 35))
+            score += height_score
+            feedback_parts.append("Right arm raised well!")
         else:
-            score -= 20
-            feedback_parts.append("Raise your right arm higher to show the curve rising.")
+            feedback_parts.append("Raise your right arm higher.")
+
+        if left_low:
+            score += 25
+            feedback_parts.append("Left side nicely low.")
+        else:
+            feedback_parts.append("Lower your left arm — the curve starts flat.")
+
+        if right_str:
+            score += 20
+            feedback_parts.append("Right arm is straight — great!")
+        else:
+            score += 5
+
+        if right_high and left_low:
+            score += 20  # bonus for nailing the overall shape
 
     elif graph_key == "cubic":
-        # S-curve: one wrist up, one wrist down, elbows on opposite sides
-        s_shape = (lw_rel > 0.05 and rw_rel < -0.05) or (rw_rel > 0.05 and lw_rel < -0.05)
-        # Elbow should curve opposite to wrist
-        elbow_curve = (le_rel < 0 and re_rel > 0) or (re_rel < 0 and le_rel > 0)
-        if s_shape:
+        # S-curve: one wrist up, other down, AND elbows curve opposite direction
+        s_wrists = (lw_rel > 0.08 and rw_rel < -0.05) or (rw_rel > 0.08 and lw_rel < -0.05)
+        s_elbows = (le_rel < -0.02 and re_rel > 0.02) or (re_rel < -0.02 and le_rel > 0.02)
+
+        if s_wrists:
+            wrist_diff = abs(lw_rel - rw_rel)
+            score += min(40, int((min(wrist_diff, 0.4) / 0.4) * 40))
+            feedback_parts.append("Good S-curve wrist direction!")
+        else:
+            feedback_parts.append("One arm should go up, the other down for an S-shape.")
+
+        if s_elbows:
             score += 30
-            feedback_parts.append("Good S-curve direction!")
-        if elbow_curve:
-            score += 20
-            feedback_parts.append("Nice elbow positioning for the S!")
-        if not s_shape and not elbow_curve:
-            score -= 20
-            feedback_parts.append("Try making an S-shape: one arm up, one arm down with a curve.")
+            feedback_parts.append("Elbows curving correctly — nice S!")
+        else:
+            score += 5
+            feedback_parts.append("Bend your elbows in opposite directions to show the S curve.")
+
+        if s_wrists and s_elbows:
+            score += 30  # full S bonus
 
     elif graph_key == "exponential":
-        # Left arm low/neutral, right arm very high (steep rise on right)
-        right_very_high = rw_rel > 0.15
-        left_neutral    = lw_rel < 0.1
-        if right_very_high and left_neutral:
-            score += 50
-            feedback_parts.append("Great exponential shape — flat left, steep right!")
-        elif right_very_high:
-            score += 30
-            feedback_parts.append("Right arm looks great. Lower your left arm more.")
+        right_very_high = rw_rel > 0.18
+        left_low        = lw_rel < 0.06
+        right_str       = right_bend < 0.25
+
+        if right_very_high:
+            height_score = min(40, int((min(rw_rel, 0.4) / 0.4) * 40))
+            score += height_score
+            feedback_parts.append("Right arm high — great steep rise!")
         else:
-            score -= 20
-            feedback_parts.append("Raise your right arm high and keep your left arm low.")
+            feedback_parts.append("Raise your right arm much higher for the steep part.")
+
+        if left_low:
+            score += 25
+            feedback_parts.append("Left arm low — good flat start!")
+        else:
+            feedback_parts.append("Keep your left arm low and close to horizontal.")
+
+        if right_str:
+            score += 15
+
+        if right_very_high and left_low:
+            score += 20  # bonus for nailing the contrast
 
     score = clamp_score(score)
     feedback = " ".join(feedback_parts) if feedback_parts else "Keep practicing!"
@@ -297,16 +389,18 @@ class PoseVideoProcessor(VideoProcessorBase):
 
         if results.pose_landmarks:
             self.last_landmarks = results.pose_landmarks
-            for landmark in results.pose_landmarks[0]:
-                h, w, _ = img.shape
-                cx, cy = int(landmark.x * w), int(landmark.y * h)
-                cv2.circle(img, (cx, cy), 5, (255, 20, 147), -1)
-            # Draw arm connections for visual clarity
-            connections = [(11,13),(13,15),(12,14),(14,16),(11,12)]
+            h, w, _ = img.shape
+            # Upper body landmarks only: shoulders(11,12), elbows(13,14), wrists(15,16), hips(23,24)
+            UPPER_BODY = [11, 12, 13, 14, 15, 16, 23, 24]
+            for idx in UPPER_BODY:
+                lm = results.pose_landmarks[0][idx]
+                cx, cy = int(lm.x * w), int(lm.y * h)
+                cv2.circle(img, (cx, cy), 6, (255, 20, 147), -1)
+            # Draw arm + shoulder connections
+            connections = [(11,13),(13,15),(12,14),(14,16),(11,12),(11,23),(12,24)]
             for a, b in connections:
                 la = results.pose_landmarks[0][a]
                 lb = results.pose_landmarks[0][b]
-                h, w, _ = img.shape
                 cv2.line(img,
                     (int(la.x*w), int(la.y*h)),
                     (int(lb.x*w), int(lb.y*h)),
@@ -368,7 +462,7 @@ def graph():
         st.rerun()
 
 def camera():
-    CAM_DURATION = 22
+    CAM_DURATION = 10
     g = GRAPH_TYPES[st.session_state.current_graph]
 
     st.markdown(f"<h2 style='text-align:center;'>Recreate with your arms!</h2>", unsafe_allow_html=True)
