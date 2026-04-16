@@ -137,7 +137,6 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
 
         if results.pose_landmarks:
             self.last_landmarks = results.pose_landmarks
-""
             #draw pose landmarks on the frames continuously for live visulizations
             self.mp_drawing.draw_landmarks(
                 img, results.pose_landmarks, self.mp_pose.POSE_CONNECTIONS,
