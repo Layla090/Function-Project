@@ -115,9 +115,9 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
             base_options=BaseOptions(model_asset_path=MODEL_PATH),
             running_mode=VisionRunningMode.VIDEO,
             num_poses=1,
-            min_pose_detection_confidence=0.5,
+            min_pose_detection_confidence=0.3,
             min_pose_presence_confidence=0.3,
-            min_tracking_confidence=0.5,
+            min_tracking_confidence=0.3,
         )
         # detector applications:
         self.pose = PoseLandmarker.create_from_options(self.options)
@@ -137,13 +137,14 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
         self.last_img = img.copy()
 
         timestamp_ms = int((time.monotonic() - self.start_time) * 1000)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb))
+        
         results = self.pose.detect_for_video(mp_image, timestamp_ms)
 
+        print(results.pose_landmarks)
         if results.pose_landmarks:
             self.last_landmarks = results.pose_landmarks
             #draw pose landmarks on the frames continuously for live visulizations
-            
             # draw simple dots
             for landmark in results.pose_landmarks[0]:
                 h, w, _ = img.shape
@@ -151,8 +152,9 @@ class PoseVideoProcessor(VideoProcessorBase): #processor analyses the photo
                 cv2.circle(img, (cx, cy), 5, (255,20,147), -1)  # hotpink dots
         else:
             self.last_landmarks = None
-            cv2.putText(img, "No pose detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-        
+            cv2.putText(img, "STEP BACK", (10, 70),
+            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # scoring value
@@ -167,6 +169,7 @@ def camera():
     st.title("Recreate the Graph with Your Arms!")
     st.write("Use your arms to mimic the shape of the graph.")
 
+    # WebRTC config (needed for Codespaces)
     rtc_config = RTCConfiguration(
         {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
     )
@@ -178,20 +181,26 @@ def camera():
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
     )
-    # Initialize timer
+
+    # ⏱ Timer setup
     if st.session_state.cam_start_time is None:
         st.session_state.cam_start_time = time.time()
+
     elapsed = time.time() - st.session_state.cam_start_time
     remaining = max(0, 10 - elapsed)
 
     st.write(f"Time left: {remaining:.1f} seconds")
 
+    # ⛔ When time runs out → freeze frame
     if remaining <= 0:
-        if ctx.video_processor and ctx.video_processor.last_img is not None:
-            st.session_state.frozen_frame = ctx.video_processor.last_img.copy()
-            st.session_state.frozen_landmarks = ctx.video_processor.last_landmarks
+        if ctx.video_processor:
+            processor = ctx.video_processor
 
-        change_page("accuracy")    
+            if processor.last_img is not None:
+                st.session_state.frozen_frame = processor.last_img.copy()
+                st.session_state.frozen_landmarks = processor.last_landmarks
+
+        change_page("accuracy")
         st.rerun()
 
 
