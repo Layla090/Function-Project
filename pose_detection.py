@@ -469,7 +469,7 @@ def camera():
     st.markdown(f"<p style='text-align:center; color:#aaa;'>Graph: <b>{g['label']}</b> — <code>{g['equation']}</code></p>", unsafe_allow_html=True)
 
     # Show a small reminder of the graph
-    with st.expander("👁 Remind me of the graph"):
+    with st.expander("👁👄👁 Remind me of the graph"):
         fig = make_graph_figure(st.session_state.current_graph, figsize=(4, 3))
         st.pyplot(fig)
         plt.close(fig)
@@ -535,7 +535,7 @@ def accuracy():
         st.session_state.score = score
 
         # Score display
-        color = "#00d4ff" if score >= 70 else "#ffd93d" if score >= 50 else "#ff6b6b"
+        color = "#A1A1F7" if score >= 70 else "#ffd93d" if score >= 50 else "#ff6b6b"
         st.markdown(f"""
             <div style='text-align:center; padding:1.5rem; background:#1a1a2e;
                         border-radius:12px; border:1px solid {color};'>
