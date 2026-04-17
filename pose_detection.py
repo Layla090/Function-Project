@@ -462,7 +462,7 @@ def graph():
         st.rerun()
 
 def camera():
-    CAM_DURATION = 10
+    CAM_DURATION = 22
     g = GRAPH_TYPES[st.session_state.current_graph]
 
     st.markdown(f"<h2 style='text-align:center;'>Recreate with your arms!</h2>", unsafe_allow_html=True)
